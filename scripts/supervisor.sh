@@ -94,6 +94,31 @@ any_still_blocked() {
   return 1
 }
 
+# A finished-worker alert is only worth sending while the worker is still idle.
+# If the orchestrator already collected the result and dispatched new work, the
+# pane is working again and the alert describes the past.
+any_still_idle() {
+  local pane info
+  for pane in $RECHECK_PANES; do
+    info="$(herdr agent get "$pane" 2>/dev/null)"
+    case "$info" in
+      *'"agent_status":"idle"'*|*'"agent_status":"done"'*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+all_workers_still_idle() {
+  local pane info
+  for pane in "${WORKERS[@]}"; do
+    info="$(herdr agent get "$pane" 2>/dev/null)"
+    case "$info" in
+      *'"agent_status":"working"'*) return 1 ;;
+    esac
+  done
+  return 0
+}
+
 log "supervisor start; orchestrator=$ORCH_PANE workers=${WORKERS[*]} work_dir=$WORK_DIR"
 herdr notification show "Herdr supervisor online" \
   --body "Watching ${#WORKERS[@]} workers" --sound none >/dev/null 2>&1
@@ -164,14 +189,15 @@ while true; do
     done
 
     herdr notification show "Workers finished" --body "${finished[*]}" --sound done >/dev/null 2>&1
-    wake_orchestrator "SUPERVISOR ALERT: finished and idle: ${finished[*]}. New output should be in $WORK_DIR; check the inbox files in $INBOX_DIR for DONE markers you have not collected yet. Skip anything already reviewed, then decide the next delegation."
+    RECHECK_PANES="${finished[*]}"
+    wake_orchestrator "SUPERVISOR ALERT: finished and idle: ${finished[*]}. New output should be in $WORK_DIR; check the inbox files in $INBOX_DIR for DONE markers you have not collected yet. Skip anything already reviewed, then decide the next delegation." any_still_idle
   fi
 
   if (( all_idle )); then
     if [[ ! -f "$STATE_DIR/all_idle_reported" ]]; then
       : >"$STATE_DIR/all_idle_reported"
       log "all workers idle"
-      wake_orchestrator "SUPERVISOR ALERT: ALL workers are idle. Every delegated task has settled. Review $WORK_DIR and dispatch the next round."
+      wake_orchestrator "SUPERVISOR ALERT: ALL workers are idle. Every delegated task has settled. Review $WORK_DIR and dispatch the next round." all_workers_still_idle
     fi
   else
     rm -f "$STATE_DIR/all_idle_reported"
