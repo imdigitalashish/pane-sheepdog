@@ -1,0 +1,3 @@
+interface:
+  display_name: "Herdr Workers"
+  short_description: "Detect and delegate to sibling Herdr agents"
