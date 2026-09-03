@@ -19,6 +19,26 @@ Keep the agents whose `workspace_id` matches `$HERDR_WORKSPACE_ID`, and drop the
 
 Report the resulting roster before delegating, including pane ID, name, status, and cwd, so the user can see who is about to do the work.
 
+## Add a worker when the pool is short
+
+Every existing agent may be busy, or the only idle ones may belong to another workspace. Create your own worker rather than interrupting someone else's run:
+
+```bash
+herdr pane split <pane-id> --direction down --ratio 0.5 --no-focus
+herdr agent start <name> --kind codex --pane <new-pane-id> --timeout 120000 -- --yolo
+```
+
+`herdr agent start` needs a pane already sitting at an interactive shell prompt, and everything after `--` is passed to the agent binary. Start Codex workers with `--yolo` so they do not stall on approval prompts mid-task: a worker that blocks on "create this repo?" holds its slot until someone notices, which defeats delegating in the first place. Only do this when the user has accepted that tradeoff, and keep the task brief narrow enough that unattended execution is appropriate.
+
+A worker will still stop for anything its own configuration escalates. When the supervisor reports a pane as `blocked`, read it and clear the prompt:
+
+```bash
+herdr agent read     <pane-id> --source recent-unwrapped --lines 45
+herdr agent send-keys <pane-id> enter
+```
+
+Read before answering. `send-keys enter` accepts whatever is selected, so confirm what the worker is actually asking before approving a destructive or externally visible action.
+
 ## Drive a worker
 
 ```bash

@@ -23,6 +23,8 @@ fi
 
 WORK_DIR="${HERDR_WORK_DIR:-/tmp/herdr_work}"
 POLL_SECS="${HERDR_POLL_SECS:-15}"
+# Workers finishing near-simultaneously should produce one wake, not several.
+SETTLE_SECS="${HERDR_SETTLE_SECS:-45}"
 INBOX_DIR="$WORK_DIR/inbox"
 STATE_DIR="$WORK_DIR/.supervisor"
 LOG="$STATE_DIR/supervisor.log"
@@ -76,6 +78,8 @@ herdr notification show "Herdr supervisor online" \
 
 while true; do
   all_idle=1
+  finished=()
+  blocked=()
 
   for pane in "${WORKERS[@]}"; do
     info="$(herdr agent get "$pane" 2>/dev/null)"
@@ -104,14 +108,41 @@ while true; do
 
       # A worker going idle or blocked is the event worth escalating.
       if [[ "$cur" == "blocked" ]]; then
-        herdr notification show "Worker blocked" --body "$pane needs input" --sound request >/dev/null 2>&1
-        wake_orchestrator "SUPERVISOR ALERT: worker $pane is BLOCKED and needs input. Inspect with: herdr agent read $pane --source recent-unwrapped --lines 120"
+        blocked+=("$pane")
       elif [[ "$cur" == "idle" && "$prev" == "working" ]]; then
-        herdr notification show "Worker finished" --body "$pane went idle" --sound done >/dev/null 2>&1
-        wake_orchestrator "SUPERVISOR ALERT: worker $pane finished and is idle. Collect its output from $WORK_DIR and the inbox files in $INBOX_DIR, then decide the next delegation."
+        finished+=("$pane")
       fi
     fi
   done
+
+  if (( ${#blocked[@]} > 0 )); then
+    herdr notification show "Worker blocked" --body "${blocked[*]}" --sound request >/dev/null 2>&1
+    wake_orchestrator "SUPERVISOR ALERT: BLOCKED and needing input: ${blocked[*]}. Inspect with: herdr agent read <pane> --source recent-unwrapped --lines 120"
+  fi
+
+  if (( ${#finished[@]} > 0 )); then
+    # Hold briefly so a sibling finishing moments later joins this same alert.
+    sleep "$SETTLE_SECS"
+    for pane in "${WORKERS[@]}"; do
+      info="$(herdr agent get "$pane" 2>/dev/null)"
+      case "$info" in
+        *'"agent_status":"idle"'*) cur=idle ;;
+        *'"agent_status":"blocked"'*) cur=blocked ;;
+        *'"agent_status":"working"'*) cur=working ;;
+        *) continue ;;
+      esac
+      state_file="$STATE_DIR/${pane//:/_}.state"
+      prev="$(cat "$state_file" 2>/dev/null || echo none)"
+      if [[ "$cur" != "$prev" ]]; then
+        printf '%s' "$cur" >"$state_file"
+        log "$pane $prev -> $cur (settle window)"
+        [[ "$cur" == "idle" ]] && finished+=("$pane")
+      fi
+    done
+
+    herdr notification show "Workers finished" --body "${finished[*]}" --sound done >/dev/null 2>&1
+    wake_orchestrator "SUPERVISOR ALERT: finished and idle: ${finished[*]}. New output should be in $WORK_DIR; check the inbox files in $INBOX_DIR for DONE markers you have not collected yet. Skip anything already reviewed, then decide the next delegation."
+  fi
 
   if (( all_idle )); then
     if [[ ! -f "$STATE_DIR/all_idle_reported" ]]; then
