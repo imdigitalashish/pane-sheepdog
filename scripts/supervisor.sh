@@ -5,6 +5,7 @@
 # Usage: supervisor.sh <orchestrator-pane> <worker-pane>...
 #   HERDR_WORK_DIR  shared directory for worker output (default /tmp/herdr_work)
 #   HERDR_POLL_SECS seconds between status polls (default 15)
+#   HERDR_SETTLE_SECS window for batching near-simultaneous finishes (default 45)
 #
 # Run it in its own pane so it outlives any single orchestrator turn:
 #   herdr pane split <pane> --direction down --ratio 0.2 --no-focus
@@ -57,8 +58,15 @@ orchestrator_safe_to_wake() {
 
 wake_orchestrator() {
   local msg="$1"
+  local recheck="${2:-}"
   local attempt=0
   while (( attempt < 60 )); do
+    # The wake may have waited minutes for the human to finish typing. Re-verify
+    # the triggering condition so a resolved issue is not reported as current.
+    if [[ -n "$recheck" ]] && ! $recheck; then
+      log "DROPPED stale alert: $msg"
+      return 0
+    fi
     if orchestrator_safe_to_wake; then
       herdr agent prompt "$ORCH_PANE" "$msg" >/dev/null 2>&1 && {
         log "WOKE orchestrator: $msg"
@@ -69,6 +77,20 @@ wake_orchestrator() {
     sleep 10
   done
   log "GAVE UP waking orchestrator (human busy 10m): $msg"
+  return 1
+}
+
+# Recheck predicates for wake_orchestrator. Set by the poll loop before use.
+RECHECK_PANES=""
+
+any_still_blocked() {
+  local pane info
+  for pane in $RECHECK_PANES; do
+    info="$(herdr agent get "$pane" 2>/dev/null)"
+    case "$info" in
+      *'"agent_status":"blocked"'*) return 0 ;;
+    esac
+  done
   return 1
 }
 
@@ -117,7 +139,8 @@ while true; do
 
   if (( ${#blocked[@]} > 0 )); then
     herdr notification show "Worker blocked" --body "${blocked[*]}" --sound request >/dev/null 2>&1
-    wake_orchestrator "SUPERVISOR ALERT: BLOCKED and needing input: ${blocked[*]}. Inspect with: herdr agent read <pane> --source recent-unwrapped --lines 120"
+    RECHECK_PANES="${blocked[*]}"
+    wake_orchestrator "SUPERVISOR ALERT: BLOCKED and needing input: ${blocked[*]}. Inspect with: herdr agent read <pane> --source recent-unwrapped --lines 120" any_still_blocked
   fi
 
   if (( ${#finished[@]} > 0 )); then

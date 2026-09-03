@@ -85,7 +85,17 @@ herdr pane split <pane-id> --direction down --ratio 0.2 --no-focus
 herdr pane run <new-pane-id> "<skill-dir>/scripts/supervisor.sh <your-pane> <worker-pane>..."
 ```
 
-[scripts/supervisor.sh](scripts/supervisor.sh) polls each worker, logs transitions, and wakes the orchestrator on completion or a blocked worker. Because waking means typing into a human-shared pane, it waits for that pane to be idle with an untouched prompt, retries while the human is composing, and gives up rather than interrupting. Tell the user the supervisor is running and which pane hosts it.
+[scripts/supervisor.sh](scripts/supervisor.sh) polls each worker, logs transitions to `$HERDR_WORK_DIR/.supervisor/supervisor.log`, and wakes the orchestrator when workers finish or block. Set `HERDR_WORK_DIR` to the directory your workers write to, since the wake message points there. Tell the user the supervisor is running and which pane hosts it.
+
+Three behaviours matter when you rely on it:
+
+Waking means typing into a human-shared pane, so the script only prompts when that pane is idle with an untouched placeholder, retries while the human is composing, and gives up after ten minutes rather than interrupting. That deferral is what makes the next two points necessary.
+
+Because a wake can be delayed by minutes, an alert may describe a condition that has since resolved. Blocked-worker alerts re-verify the pane is still blocked immediately before prompting and drop the alert otherwise. Treat any alert as a prompt to re-check current state rather than as a fact.
+
+Workers finishing seconds apart would otherwise produce separate wakes for the same batch. Completions are collected during a settle window, then reported in one message. Give the supervisor every worker you care about in a single invocation instead of running one per worker.
+
+The pane hosting the supervisor is a plain shell, not an agent, so it does not appear in `herdr agent list`. Restart it with `herdr pane run` on the same pane after changing the roster or editing the script; stop the previous process first so two instances do not both wake you.
 
 ## Get real disagreement out of the pool
 
