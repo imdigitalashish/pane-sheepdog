@@ -148,6 +148,29 @@ seconds apart are collected during a settle window (`HERDR_SETTLE_SECS`, default
 reported in one message rather than one wake per worker. Pass every worker to a single
 invocation instead of running one supervisor each.
 
+Every alert carries the whole roster, not just the pane that triggered it, because a wake is
+a scheduling opportunity rather than a notification. One worker finishing usually means
+others are free; naming them lets the orchestrator fill the pool in a single turn instead of
+finding idle workers one wake at a time.
+
+## Ending the run
+
+A supervisor polls forever and has no idea the objective was met. Deciding the work is done
+is the orchestrator's job, and it is a real decision: without it you get woken about a
+finished project, and each wake tempts you to invent filler work for idle workers.
+
+Judge completion against the user's objective, not worker activity. An idle pool means nobody
+is busy; it does not mean the question is answered. Every alert forces one of two answers,
+dispatch to every available worker or end the run, and drifting between them is what produces
+the repeated wakes.
+
+```bash
+touch "$HERDR_WORK_DIR/.supervisor/STOP"
+```
+
+The supervisor exits on its next poll. Then deliver the integrated result, name what is still
+open, and leave the worker panes alone rather than closing panes you did not create.
+
 ## Slicing the work
 
 Delegation quality is set before any worker starts. Slice along the wrong seam and workers

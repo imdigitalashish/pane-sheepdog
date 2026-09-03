@@ -7,6 +7,8 @@
 #   HERDR_POLL_SECS seconds between status polls (default 15)
 #   HERDR_SETTLE_SECS window for batching near-simultaneous finishes (default 45)
 #
+# Stop it by creating $HERDR_WORK_DIR/.supervisor/STOP, or by ending the pane.
+#
 # Run it in its own pane so it outlives any single orchestrator turn:
 #   herdr pane split <pane> --direction down --ratio 0.2 --no-focus
 #   herdr pane run <new-pane> "<this-script> wB:p1 wB:p2 wB:p3"
@@ -119,11 +121,40 @@ all_workers_still_idle() {
   return 0
 }
 
+# A wake is a scheduling opportunity, not just a notification: report the whole
+# roster so the orchestrator can fill every free worker in one turn instead of
+# discovering the others one wake at a time.
+roster_summary() {
+  # Avoid the name "status": it is read-only in some shells.
+  local pane info summary idle_list="" working_list="" blocked_list=""
+  for pane in "${WORKERS[@]}"; do
+    info="$(herdr agent get "$pane" 2>/dev/null)"
+    case "$info" in
+      *'"agent_status":"idle"'*|*'"agent_status":"done"'*) idle_list="$idle_list $pane" ;;
+      *'"agent_status":"blocked"'*) blocked_list="$blocked_list $pane" ;;
+      *'"agent_status":"working"'*) working_list="$working_list $pane" ;;
+    esac
+  done
+  summary="AVAILABLE NOW:${idle_list:- none}"
+  [[ -n "$blocked_list" ]] && summary="$summary | BLOCKED:$blocked_list"
+  summary="$summary | still working:${working_list:- none}"
+  printf '%s' "$summary"
+}
+
 log "supervisor start; orchestrator=$ORCH_PANE workers=${WORKERS[*]} work_dir=$WORK_DIR"
 herdr notification show "Herdr supervisor online" \
   --body "Watching ${#WORKERS[@]} workers" --sound none >/dev/null 2>&1
 
 while true; do
+  # The orchestrator ends the run by dropping a STOP file. Without this the loop
+  # keeps waking someone about a finished project.
+  if [[ -f "$STATE_DIR/STOP" ]]; then
+    log "STOP file present; supervisor exiting"
+    herdr notification show "Herdr supervisor stopped" \
+      --body "Run complete" --sound none >/dev/null 2>&1
+    exit 0
+  fi
+
   all_idle=1
   finished=()
   blocked=()
@@ -165,7 +196,7 @@ while true; do
   if (( ${#blocked[@]} > 0 )); then
     herdr notification show "Worker blocked" --body "${blocked[*]}" --sound request >/dev/null 2>&1
     RECHECK_PANES="${blocked[*]}"
-    wake_orchestrator "SUPERVISOR ALERT: BLOCKED and needing input: ${blocked[*]}. Inspect with: herdr agent read <pane> --source recent-unwrapped --lines 120" any_still_blocked
+    wake_orchestrator "SUPERVISOR ALERT: BLOCKED and needing input: ${blocked[*]}. $(roster_summary). Inspect with: herdr agent read <pane> --source recent-unwrapped --lines 120, then clear it and also assign any available worker." any_still_blocked
   fi
 
   if (( ${#finished[@]} > 0 )); then
@@ -190,14 +221,14 @@ while true; do
 
     herdr notification show "Workers finished" --body "${finished[*]}" --sound done >/dev/null 2>&1
     RECHECK_PANES="${finished[*]}"
-    wake_orchestrator "SUPERVISOR ALERT: finished and idle: ${finished[*]}. New output should be in $WORK_DIR; check the inbox files in $INBOX_DIR for DONE markers you have not collected yet. Skip anything already reviewed, then decide the next delegation." any_still_idle
+    wake_orchestrator "SUPERVISOR ALERT: finished: ${finished[*]}. $(roster_summary). New output should be in $WORK_DIR; check the inbox files in $INBOX_DIR for DONE markers you have not collected yet. Skip anything already reviewed. Assign work to EVERY available worker in this turn, or decide the run is complete and touch $STATE_DIR/STOP." any_still_idle
   fi
 
   if (( all_idle )); then
     if [[ ! -f "$STATE_DIR/all_idle_reported" ]]; then
       : >"$STATE_DIR/all_idle_reported"
       log "all workers idle"
-      wake_orchestrator "SUPERVISOR ALERT: ALL workers are idle. Every delegated task has settled. Review $WORK_DIR and dispatch the next round." all_workers_still_idle
+      wake_orchestrator "SUPERVISOR ALERT: ALL workers idle, every delegated task has settled. $(roster_summary). Review $WORK_DIR, then either dispatch a round that uses every worker or decide the objective is met and touch $STATE_DIR/STOP to end the run." all_workers_still_idle
     fi
   else
     rm -f "$STATE_DIR/all_idle_reported"

@@ -118,7 +118,27 @@ Because a wake can be delayed by minutes, an alert may describe a condition that
 
 Workers finishing seconds apart would otherwise produce separate wakes for the same batch. Completions are collected during a settle window, then reported in one message. Give the supervisor every worker you care about in a single invocation instead of running one per worker.
 
+Every alert carries the full roster, not just the pane that triggered it. Treat a wake as a scheduling opportunity: a worker finishing usually means others are free too, and the alert names them so you can fill the whole pool in one turn rather than discovering idle workers one wake at a time. Check the roster before writing any brief, since what is available changes which slices are worth cutting.
+
 The pane hosting the supervisor is a plain shell, not an agent, so it does not appear in `herdr agent list`. Restart it with `herdr pane run` on the same pane after changing the roster or editing the script; stop the previous process first so two instances do not both wake you.
+
+## Decide when the run is over
+
+A supervisor polls forever. Nothing in the loop knows the objective was met, so deciding the run is finished is your job, and it is a real decision rather than a formality. Without it you keep getting woken about a project that is done, and each wake tempts you to invent filler work for idle workers.
+
+Judge completion against the user's objective, not against worker activity. An idle pool means nobody is busy; it does not mean the question is answered. Ask whether the deliverable the user asked for exists, whether the findings that would change it have been collected, and whether the remaining unknowns are ones more delegation could actually resolve. Work that only a decision from the user can unblock is finished from your side even though it is not resolved.
+
+Each wake therefore forces one of two answers: dispatch work to every available worker, or end the run. Drifting between them is what produces repeated wakes about a finished project.
+
+Resist manufacturing tasks to fill capacity. An idle worker costs nothing; a worker producing material nobody needs costs you the turns spent reading it and dilutes the result. If the next slice would not change a conclusion or a decision, there is no next slice, and that is a signal the run is over rather than a reason to invent one.
+
+When the objective is met, stop the supervisor and say so:
+
+```bash
+touch "$HERDR_WORK_DIR/.supervisor/STOP"
+```
+
+The supervisor exits on its next poll. Then deliver the integrated result, name anything still open, and leave the workers idle rather than closing panes you did not create. If the user reopens the thread later, start a new supervisor with the current roster.
 
 ## Get real disagreement out of the pool
 
