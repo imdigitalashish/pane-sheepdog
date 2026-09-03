@@ -141,6 +141,37 @@ Tune it with `HERDR_WORK_DIR` (default `/tmp/herdr_work`) and `HERDR_POLL_SECS`
 Tell the user the supervisor is running and which pane hosts it. An unexplained pane that
 occasionally types into their terminal is alarming.
 
+Two behaviours exist because the wake is deliberately deferred. A wake can wait minutes for
+the human to stop typing, so a blocked-worker alert re-checks that the pane is still blocked
+before sending, and drops the alert if the human already cleared it. Workers finishing
+seconds apart are collected during a settle window (`HERDR_SETTLE_SECS`, default `45`) and
+reported in one message rather than one wake per worker. Pass every worker to a single
+invocation instead of running one supervisor each.
+
+## Slicing the work
+
+Delegation quality is set before any worker starts. Slice along the wrong seam and workers
+duplicate each other, research questions that do not matter, or leave the load-bearing
+problem untouched.
+
+Decompose from the problem rather than from the vocabulary of the request. What objects
+actually exist here? What must be solved *before* the thing that was asked about? Which
+parts are protocol facts and which need judgment? And the one that earns its keep most
+often: what would an expert complain you forgot entirely?
+
+A request for a phone-calling agent names the voice model. The binding constraints may turn
+out to be carrier origination, legal eligibility, and what the agent is permitted to commit
+to on someone's behalf. Three separate slices, different owners, and only one of them
+appeared in the question.
+
+Prefer slices separable by evidence, where each worker can finish without knowing what
+another concluded. When two slices genuinely depend on each other, own the dependency
+yourself and hand each worker the resolved fact instead of making them negotiate it.
+
+A first-principles reasoning skill pairs well here: a coverage scan is a decomposition tool,
+and assumption-challenge questions convert directly into adversarial worker prompts. See
+[Related](#related).
+
 ## Getting real disagreement out of the pool
 
 Parallel workers asked to "analyze the tradeoffs" return parallel hedged surveys that agree
@@ -155,6 +186,20 @@ that makes concession safe, which matters more than it sounds:
 
 > Concede what is genuinely broken and defend what is genuinely sound.
 > I value a real concession over a clever save.
+
+Form your own position before assigning the roles. An orchestrator who has not reasoned about
+the problem cannot tell a real concession from a fluent one, and cannot write an antithesis
+sharp enough to be worth attacking.
+
+The attack that lands most often, across domains: a control that binds only a component
+already inclined to comply. Ask whether a mechanism constrains the adversarial case or merely
+documents the cooperative one.
+
+Then act on the ruling. Say which position won, name what each side conceded, and push both
+the revision and any newly exposed gap back into the pool as fresh tasks stating the ruling as
+settled. Report the disagreement to the user rather than smoothing it into consensus: a design
+where an attack succeeded and the fix is known is more trustworthy than one where everyone
+agreed.
 
 ## Operational invariants
 
@@ -182,6 +227,14 @@ scripts/supervisor.sh               polls workers, logs transitions, safely wake
 references/adversarial-delegation.md  stress-testing designs with opposed workers and forced lenses
 agents/openai.yaml                  display metadata
 ```
+
+## Related
+
+`SKILL.md` refers to a companion skill, `first-principles-study`, for decomposition and for
+the assumption-challenge questions used to attack a design. It is optional: every section
+here works without it, and the guidance degrades to "decompose from the problem, not the
+request's vocabulary." Install it alongside this one at
+`~/.codex/skills/first-principles-study` if you want the fuller version.
 
 ## License
 

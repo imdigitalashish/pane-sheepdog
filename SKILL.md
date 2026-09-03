@@ -19,6 +19,29 @@ Keep the agents whose `workspace_id` matches `$HERDR_WORKSPACE_ID`, and drop the
 
 Report the resulting roster before delegating, including pane ID, name, status, and cwd, so the user can see who is about to do the work.
 
+## Decompose before you delegate
+
+Delegation quality is set before any worker starts. Slice along the wrong seam and workers duplicate each other, research questions that do not matter, or leave the load-bearing problem untouched. Decompose from first principles rather than from the vocabulary of the request.
+
+When the `first-principles-study` skill is available, use its Mandatory Internal Coverage Scan as the decomposition tool. Four of its lenses do most of the work here:
+
+- **Objects and ontology.** What actually exists in this problem, as opposed to what the request happens to name. These become candidate slices.
+- **Upstream dependencies.** What must be solved before the thing the user asked about. A dependency nobody owns is the slice most worth assigning first.
+- **Deterministic versus probabilistic.** Which parts are rules, data, or protocol facts, and which need judgment. Factual slices parallelize cleanly; judgment slices need an owner and usually an adversary.
+- **Missing-layer audit.** Ask what an expert would complain you forgot entirely, then staff that gap. A request phrased around one layer often hides its real difficulty in another.
+
+A user asking for a phone-calling agent names the voice model, but the binding constraints may be carrier origination, legal eligibility, and what the agent is permitted to commit to. Those are separate slices with different owners, and only one of them was in the question.
+
+Prefer slices that are separable by evidence: each worker should be able to finish without knowing what another concluded. When two slices genuinely depend on each other, own the dependency yourself and hand each worker the resolved fact rather than making them negotiate it.
+
+## Write a brief a worker can finish alone
+
+A worker starts with no context beyond your prompt: not your reasoning, not the user's request, not its own working directory. Vague briefs come back as link dumps.
+
+State the deliverable as one absolute path the worker owns exclusively, and say which paths belong to others and are read-only. Name the questions to answer rather than the topic to explore, and say what would make the answer wrong. Include settled facts explicitly so the worker does not spend turns rediscovering them, and mark which sections matter most when the brief is long. If output could be large, require a file plus a one-line reply so a long answer cannot scroll off the pane.
+
+Correct a worker as soon as you see it wasting turns; a mid-task prompt costs one turn and can save many. Watch for search engines returning consent interstitials, re-researching a settled fact, or drifting outside its slice.
+
 ## Add a worker when the pool is short
 
 Every existing agent may be busy, or the only idle ones may belong to another workspace. Create your own worker rather than interrupting someone else's run:
@@ -102,6 +125,22 @@ The pane hosting the supervisor is a plain shell, not an agent, so it does not a
 Parallel workers that only answer questions produce parallel opinions, not a decision. When the user wants an architecture stress-tested rather than merely researched, assign opposing roles on the same question and adjudicate the result yourself. State a concrete antithesis instead of asking for balanced analysis, and tell workers a genuine concession is worth more than a clever save.
 
 For the role assignments, forced-perspective framings, and prompt shapes that hold up, read [references/adversarial-delegation.md](references/adversarial-delegation.md).
+
+Form your own position before you assign the roles. An orchestrator who has not reasoned about the problem cannot tell a real concession from a fluent one, and cannot write an antithesis sharp enough to be worth attacking. Do the primary reading yourself on whatever is load-bearing.
+
+## Adjudicate, then act on the ruling
+
+Opposing briefs are not a decision. Say plainly which position won, name what each side conceded, and carry forward the risk that neither eliminated. Workers cannot see each other's output, so an unstated verdict is lost.
+
+Then push the ruling back into the pool. A losing design usually needs revising by its author, and a newly exposed gap usually needs a fresh slice. Send both as new tasks that state the ruling as a settled premise, so nobody relitigates it. Tell the author what survived as well as what failed; that is what keeps the next round honest rather than defensive.
+
+Report the disagreement to the user rather than smoothing it into consensus. A design where an attack succeeded and the fix is known is more trustworthy than one where everyone agreed.
+
+## Integrate rather than concatenate
+
+Worker files are inputs, not the answer. Read them, resolve conflicts, and state a single position. When two workers disagree on fact, check the primary source yourself rather than averaging them.
+
+Verify claims that assert an external side effect. A worker reporting that it published, deployed, or created something is reporting its belief; confirm against the system itself. Give the user the conclusion and its consequences, cite which worker produced what only when provenance matters, and surface any finding that changes the shape of the task as soon as you have it rather than saving it for a final summary.
 
 ## Operational invariants
 

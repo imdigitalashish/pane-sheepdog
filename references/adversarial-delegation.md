@@ -39,6 +39,20 @@ The reusable move is to find where a design claims determinism but actually depe
 
 > Every input to your deterministic gate is model-generated. You moved trust from the model's assertions to the model's arguments and called it deterministic. Defend that or concede it.
 
+## Attack from first principles
+
+The strongest attacks come from re-deriving the problem rather than inspecting the proposal. When the `first-principles-study` skill is available, its Assumption Challenge questions convert directly into delegation prompts, because each one can be answered adversarially by a worker:
+
+- Is the named abstraction the correct abstraction, or did the design inherit it from the request's vocabulary?
+- What would we build if the fashionable solution did not exist?
+- Which parts are being handed to a model that could be deterministic?
+- Are we optimizing a proxy instead of the real objective?
+- What information was destroyed by an earlier representation decision?
+
+The causal decomposition pattern is also worth handing to a worker directly: *why does this problem exist, what is the simplest solution, where does it fail, what mechanism fixes that failure, and what new failure does that mechanism introduce?* A worker that answers this produces the design's actual failure boundary rather than a critique of its surface.
+
+Watch for the failure this catches most often: a control that binds only a component already inclined to comply. Ask whether the mechanism constrains the adversarial case or merely documents the cooperative one.
+
 ## Forced perspectives
 
 Six-hat assignment works when a decision has stalled or the pool is producing uniform analysis. Assign each worker one lens and forbid the others, so a single pass yields genuinely different material:
