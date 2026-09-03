@@ -62,6 +62,8 @@ herdr agent send-keys <pane-id> enter
 
 Read before answering. `send-keys enter` accepts whatever is selected, so confirm what the worker is actually asking before approving a destructive or externally visible action.
 
+A worker started without `--yolo` will block on every escalation, not once. If the same pane keeps stopping on routine read-only commands, that is a configuration problem rather than a series of incidents: either take the worker's persistent-approval option so the prefix is remembered, or plan on clearing it repeatedly for the rest of the run. Note which panes you created with `--yolo`, since a pane that was already running when you found it may not have been.
+
 ## Drive a worker
 
 ```bash
